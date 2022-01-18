@@ -28,7 +28,7 @@ while true; do
     # path to seq differ for each project; examples: `.base_account.sequence`, `.sequence`
     seq=$($COS_BIN q account ${COS_WALLET_ADDR} -o=json | jq -r .sequence)
 
-    while [[ "$error_code" != "32" ]]; do
+    while [[ "$error_code" == "32" ]]; do
       result=$(echo ${COS_PASS} | $COS_BIN tx staking delegate ${COS_VALOP} ${amount_to_delegate}${COS_DENOM} --from=${COS_WALLET} --chain-id=${COS_CHAIN} ${COS_FEES} -s=${seq} -y -o=json)
       error_code=$(echo ${result} | jq .code)
 
