@@ -1,7 +1,6 @@
 #!/bin/bash
 source ~/.bash_profile
 
-SLEEP_BETWEEN_DELEGATIONS=0
 MIN_BALANCE_TO_SAVE=1000
 
 COS_BIN="umeed"
@@ -16,14 +15,21 @@ COS_FEES="--fees=10${COS_DENOM}"
 LOG_PATH="${HOME}/${COS_BIN}_staking.log"
 
 while true; do
+  # run delegation every new block
+  current_block=$(umeed status 2>&1 | jq -r .SyncInfo.latest_block_height)
+  while [[ ${current_block} -le ${last_block} ]]; do
+    echo "waiting next block: $((current_block + 1))"
+    sleep 0.1
+    current_block=$(umeed status 2>&1 | jq -r .SyncInfo.latest_block_height)
+  done
+  
   echo ${COS_PASS} | $COS_BIN tx distribution withdraw-rewards ${COS_VALOP} --from=${COS_WALLET} --chain-id=${COS_CHAIN} --commission ${COS_FEES} -y > /dev/null 2>&1
-  balance_before=$($COS_BIN query bank balances ${COS_WALLET_ADDR} --chain-id=${COS_CHAIN} -o=json | jq -r '.balances[0].amount')
+  balance_before=$($COS_BIN query bank balances ${COS_WALLET_ADDR} --chain-id=${COS_CHAIN} -o=json | jq -r ".balances[] |  select(.denom==\"uumee\") | .amount")
   amount_to_delegate=$((balance_before - MIN_BALANCE_TO_SAVE))
-  echo "Current Voting Power: $($COS_BIN status 2>&1 | jq -r '.ValidatorInfo.VotingPower')"
-  echo "$(date) Balance before: ${balance_before} to delegate: ${amount_to_delegate}"
+  echo "$(date) block: ${current_block}"
+  echo "current balance: ${balance_before} to delegate: ${amount_to_delegate}"
 
   if [[ ${amount_to_delegate} -gt 0 ]]; then
-    #echo "$(date) Balance before: ${balance_before} to delegate: ${amount_to_delegate}" >> ${LOG_PATH} 2>&1
     error_code="32";
     # path to seq differ for each project; examples: `.base_account.sequence`, `.sequence`
     seq=$($COS_BIN q account ${COS_WALLET_ADDR} -o=json | jq -r .sequence)
@@ -36,18 +42,16 @@ while true; do
         # get account sequence from the failed tx raw_log
         seq=$(echo ${result} | jq .raw_log | awk '{print substr($5, 1, length($5)-1)}')
         echo "wrong sequence; right sequence is:" $seq
-      elif [[ "$error_code" != "0" ]]; then
-        echo "error code: $error_code message:" `echo $result | jq .raw_log`
-        echo $result | jq >> ${LOG_PATH} 2>&1
+      elif [[ "$error_code" == "0" ]]; then
+        echo "success! tx hash $(echo $result | jq -r .txhash)"
+        last_block=$current_block
       else
-        echo $(echo $result | jq -r .txhash)
+        echo ${result} | jq .raw_log
       fi
     done
-
-    #balance_after=$($COS_BIN query bank balances ${COS_WALLET_ADDR} --chain-id=${COS_CHAIN} -o=json | jq -r '.balances[0].amount')
-    #echo "$(date) Balance after:  ${balance_after}"
-
+  
   else
     echo "TOO LITTLE BALANCE FOR DELEGATION"
+    last_block=$current_block
   fi
 done
