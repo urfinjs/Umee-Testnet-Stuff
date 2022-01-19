@@ -24,7 +24,7 @@ while true; do
   done
   
   echo ${COS_PASS} | $COS_BIN tx distribution withdraw-rewards ${COS_VALOP} --from=${COS_WALLET} --chain-id=${COS_CHAIN} --commission ${COS_FEES} -y > /dev/null 2>&1
-  balance_before=$($COS_BIN query bank balances ${COS_WALLET_ADDR} --chain-id=${COS_CHAIN} -o=json | jq -r ".balances[] |  select(.denom==\"uumee\") | .amount")
+  balance_before=$($COS_BIN query bank balances ${COS_WALLET_ADDR} --chain-id=${COS_CHAIN} -o=json | jq -r ".balances[] |  select(.denom==\"$COS_DENOM\") | .amount")
   amount_to_delegate=$((balance_before - MIN_BALANCE_TO_SAVE))
   echo "$(date) block: ${current_block}"
   echo "current balance: ${balance_before} to delegate: ${amount_to_delegate}"
